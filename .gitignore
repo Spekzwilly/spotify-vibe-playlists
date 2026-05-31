@@ -1,0 +1,7 @@
+node_modules/
+.env
+certs/
+~/.spotify-vibe-token.json
+*.js
+*.d.ts
+dist/
