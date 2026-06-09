@@ -5,3 +5,6 @@ certs/
 *.js
 *.d.ts
 dist/
+
+# Spectra app data
+.spectra/

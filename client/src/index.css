@@ -1,0 +1,68 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg: #060400;
+  --bg-panel: #0a0700;
+  --primary: #ffd700;
+  --orange: #ff9900;
+  --border: #ffd70028;
+  --border-mid: #ffd70044;
+  --dim: #ffd70055;
+  --muted: #ffd70033;
+  --font: 'Share Tech Mono', monospace;
+}
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg);
+  color: var(--primary);
+  font-family: var(--font);
+  font-size: 14px;
+  overflow: hidden;
+}
+
+button {
+  font-family: var(--font);
+  cursor: pointer;
+  border-radius: 0;
+}
+
+input, textarea {
+  font-family: var(--font);
+  border-radius: 0;
+}
+
+/* CRT scanline overlay */
+.scanlines {
+  position: relative;
+}
+
+.scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.10) 2px,
+    rgba(0, 0, 0, 0.10) 4px
+  );
+  pointer-events: none;
+  z-index: 999;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-mid);
+}
