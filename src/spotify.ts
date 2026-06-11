@@ -57,8 +57,19 @@ export interface SpotifyPlaylist {
   external_urls: { spotify: string };
 }
 
+// Spotify returns the track count under `items.total` (the /items rename, not
+// the deprecated `tracks`). Normalize each raw playlist to our SpotifyPlaylist
+// contract so all endpoints emit the same shape the client expects.
+interface RawPlaylist {
+  id: string;
+  name: string;
+  items?: { total: number };
+  tracks?: { total: number };
+  external_urls: { spotify: string };
+}
+
 interface PlaylistPage {
-  items: SpotifyPlaylist[];
+  items: RawPlaylist[];
   next: string | null;
 }
 
@@ -67,7 +78,14 @@ export async function getPlaylists(token: string): Promise<SpotifyPlaylist[]> {
   let url: string | null = `${BASE}/me/playlists?limit=50`;
   while (url) {
     const page: PlaylistPage = (await axios.get<PlaylistPage>(url, { headers: headers(token) })).data;
-    playlists.push(...page.items);
+    for (const p of page.items) {
+      playlists.push({
+        id: p.id,
+        name: p.name,
+        tracks: { total: p.items?.total ?? p.tracks?.total ?? 0 },
+        external_urls: p.external_urls,
+      });
+    }
     url = page.next;
   }
   return playlists;
@@ -78,33 +96,21 @@ export async function replacePlaylistTracks(
   playlistId: string,
   uris: string[]
 ): Promise<void> {
-  // Fetch existing track URIs to delete
-  interface TrackItemsPage {
-    items: { track: { uri: string } }[];
-    next: string | null;
-  }
-  const existingUris: string[] = [];
-  let nextUrl: string | null = `${BASE}/playlists/${playlistId}/items?limit=100&fields=next,items(track(uri))`;
-  while (nextUrl) {
-    const page: TrackItemsPage = (await axios.get<TrackItemsPage>(nextUrl, { headers: headers(token) })).data;
-    existingUris.push(...page.items.map((item) => item.track.uri));
-    nextUrl = page.next;
-  }
+  // PUT /items replaces the entire playlist contents in a single call (max 100
+  // URIs). This avoids reading existing items first — whose shape under the
+  // /items endpoint nests the track under `item`, not `track` — and sidesteps
+  // the deprecated DELETE/{tracks} dance entirely. An empty `uris` clears it.
+  await axios.put(
+    `${BASE}/playlists/${playlistId}/items`,
+    { uris: uris.slice(0, 100) },
+    { headers: { ...headers(token), "Content-Type": "application/json" } }
+  );
 
-  // DELETE existing tracks via /items (not /tracks — avoid deprecated endpoint)
-  for (let i = 0; i < existingUris.length; i += 100) {
-    const batch = existingUris.slice(i, i + 100);
-    await axios.delete(`${BASE}/playlists/${playlistId}/items`, {
-      headers: { ...headers(token), "Content-Type": "application/json" },
-      data: { tracks: batch.map((uri) => ({ uri })) },
-    });
-  }
-
-  // POST new tracks via /items
-  if (uris.length > 0) {
+  // PUT caps at 100; append any remainder via POST /items.
+  for (let i = 100; i < uris.length; i += 100) {
     await axios.post(
       `${BASE}/playlists/${playlistId}/items`,
-      { uris },
+      { uris: uris.slice(i, i + 100) },
       { headers: { ...headers(token), "Content-Type": "application/json" } }
     );
   }

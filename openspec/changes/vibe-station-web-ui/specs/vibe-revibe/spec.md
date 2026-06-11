@@ -2,12 +2,12 @@
 
 ### Requirement: Revibe endpoint
 
-The server SHALL expose `POST /api/playlists/:id/revibe` accepting `{ prompt: string }`. The server SHALL call the Anthropic API to get new track selections for the given prompt, clear all existing tracks from the playlist via `DELETE /v1/playlists/{id}/items`, add the new tracks via `POST /v1/playlists/{id}/items`, and return `{ playlist: SpotifyPlaylist, log: VibeLogEntry }`. The endpoint SHALL NEVER use the deprecated `/tracks` sub-resource.
+The server SHALL expose `POST /api/playlists/:id/revibe` accepting `{ prompt: string }`. The server SHALL call the Anthropic API to get new track selections for the given prompt, replace the playlist's entire contents with the new tracks via `PUT /v1/playlists/{id}/items` with body `{ uris }` (a single call that overwrites all existing items; for more than 100 URIs the remainder is appended via `POST /v1/playlists/{id}/items`), and return `{ playlist: SpotifyPlaylist, log: VibeLogEntry }`. The endpoint SHALL NEVER use the deprecated `/tracks` sub-resource. Any code reading playlist items SHALL read each track under the item's `item` field (the `/items` shape), never `item.track`.
 
 #### Scenario: Successful revibe
 
 - **WHEN** the client POSTs `{ "prompt": "energetic morning run" }` to `/api/playlists/abc123/revibe`
-- **THEN** the server clears the playlist's tracks, adds new tracks, and returns HTTP 200 with the updated playlist and vibe log
+- **THEN** the server replaces the playlist's tracks with the new selections and returns HTTP 200 with the updated playlist and vibe log
 
 #### Scenario: Playlist not found
 

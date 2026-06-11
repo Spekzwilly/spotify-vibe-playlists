@@ -2,7 +2,7 @@
 
 ### Requirement: Fetch playlists from Spotify
 
-The server SHALL expose `GET /api/playlists` that returns the current user's playlists by calling `GET /v1/me/playlists` with a valid access token. The response SHALL be `{ playlists: SpotifyPlaylist[] }` where each item contains at minimum `id`, `name`, `tracks.total`, and `external_urls.spotify`.
+The server SHALL expose `GET /api/playlists` that returns the current user's playlists by calling `GET /v1/me/playlists` with a valid access token. The response SHALL be `{ playlists: SpotifyPlaylist[] }` where each item contains at minimum `id`, `name`, `tracks.total`, and `external_urls.spotify`. Spotify returns the track count under the `items` field (the `/items` shape); the server SHALL normalize this to `tracks.total` so the client receives a consistent shape across the list, create, and re-vibe endpoints.
 
 #### Scenario: Successful fetch
 

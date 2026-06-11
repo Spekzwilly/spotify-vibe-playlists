@@ -21,6 +21,13 @@ export default function App() {
     setConnected(data.connected)
   }, [])
 
+  const logout = useCallback(async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    setConnected(false)
+    setPlaylists([])
+    setSelected(null)
+  }, [])
+
   useEffect(() => {
     checkStatus()
   }, [checkStatus])
@@ -100,6 +107,21 @@ export default function App() {
             {' '}{connected ? 'CONNECTED' : 'NOT CONNECTED'} ]
           </span>
           <span>[ CLAUDE <span style={{ color: '#ffd700' }}>●</span> READY ]</span>
+          {connected && (
+            <button
+              onClick={logout}
+              style={{
+                background: 'transparent',
+                border: '1px solid #ffd70044',
+                color: '#ffd70099',
+                fontSize: '11px',
+                letterSpacing: '1px',
+                padding: '2px 10px',
+              }}
+            >
+              ⏻ LOG OUT
+            </button>
+          )}
         </div>
       </div>
 

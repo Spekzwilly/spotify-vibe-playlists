@@ -46,16 +46,6 @@ function base64url(buf: Buffer): string {
   return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
-function isTokenConnected(): boolean {
-  if (!fs.existsSync(TOKEN_PATH)) return false;
-  try {
-    const t = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8")) as TokenData;
-    return Date.now() < t.expires_at - 30_000;
-  } catch {
-    return false;
-  }
-}
-
 async function getValidToken(): Promise<string> {
   const token = JSON.parse(fs.readFileSync(TOKEN_PATH, "utf-8")) as TokenData;
   if (Date.now() < token.expires_at - 30_000) return token.access_token;
@@ -92,8 +82,20 @@ app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
 // ── Auth: status ──────────────────────────────────────────────────────────────
-app.get("/api/auth/status", (_req, res) => {
-  res.json({ connected: isTokenConnected() });
+app.get("/api/auth/status", async (_req, res) => {
+  if (!fs.existsSync(TOKEN_PATH)) {
+    res.json({ connected: false });
+    return;
+  }
+  // Report connected whenever the token is valid OR silently refreshable, so an
+  // expired access token doesn't bounce the user back into the OAuth flow while
+  // a working refresh_token is on disk. Only a genuinely dead token → false.
+  try {
+    await getValidToken();
+    res.json({ connected: true });
+  } catch {
+    res.json({ connected: false });
+  }
 });
 
 // ── Auth: login (PKCE redirect) ───────────────────────────────────────────────
@@ -116,7 +118,10 @@ app.get("/api/auth/login", (_req, res) => {
 });
 
 // ── Auth: callback ────────────────────────────────────────────────────────────
-app.get("/api/auth/callback", async (req, res) => {
+// Path must match SPOTIFY_REDIRECT_URI (…/callback) — Spotify redirects the
+// browser straight to Express on :8888, so this is mounted at /callback, not
+// under /api. A mismatch surfaces as the browser's "Cannot GET /callback".
+app.get("/callback", async (req, res) => {
   const { code, error, state } = req.query as Record<string, string>;
 
   if (error || !code) {
@@ -154,9 +159,16 @@ app.get("/api/auth/callback", async (req, res) => {
   }
 });
 
+// ── Auth: logout ──────────────────────────────────────────────────────────────
+// Deletes the local token so the app drops back to the not-connected state.
+app.post("/api/auth/logout", (_req, res) => {
+  if (fs.existsSync(TOKEN_PATH)) fs.unlinkSync(TOKEN_PATH);
+  res.json({ ok: true });
+});
+
 // ── Playlists ─────────────────────────────────────────────────────────────────
 app.get("/api/playlists", async (_req, res) => {
-  if (!isTokenConnected()) {
+  if (!fs.existsSync(TOKEN_PATH)) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -183,7 +195,7 @@ app.post("/api/vibe", async (req, res) => {
     return;
   }
 
-  if (!isTokenConnected()) {
+  if (!fs.existsSync(TOKEN_PATH)) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -216,7 +228,7 @@ app.post("/api/vibe", async (req, res) => {
     };
 
     const message = await client.messages.create({
-      model: "claude-opus-4-8-20251101",
+      model: "claude-sonnet-4-6",
       max_tokens: 1024,
       tools: [toolDef],
       messages: [{ role: "user", content: prompt }],
@@ -294,7 +306,7 @@ app.post("/api/playlists/:id/revibe", async (req, res) => {
     return;
   }
 
-  if (!isTokenConnected()) {
+  if (!fs.existsSync(TOKEN_PATH)) {
     res.status(401).json({ error: "Not authenticated" });
     return;
   }
@@ -337,7 +349,7 @@ app.post("/api/playlists/:id/revibe", async (req, res) => {
     };
 
     const message = await client.messages.create({
-      model: "claude-opus-4-8-20251101",
+      model: "claude-sonnet-4-6",
       max_tokens: 1024,
       tools: [toolDef],
       messages: [{ role: "user", content: prompt }],

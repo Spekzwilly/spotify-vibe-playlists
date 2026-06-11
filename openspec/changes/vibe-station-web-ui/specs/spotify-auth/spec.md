@@ -14,6 +14,11 @@ The server SHALL expose `GET /api/auth/status` returning `{ connected: boolean }
 - **WHEN** a valid non-expired token exists
 - **THEN** `GET /api/auth/status` returns `{ "connected": true }` with HTTP 200
 
+#### Scenario: Token expired but refreshable
+
+- **WHEN** the access token is expired but a valid `refresh_token` is present on disk
+- **THEN** the server silently refreshes the token and `GET /api/auth/status` returns `{ "connected": true }` with HTTP 200 (the user is not forced to re-authenticate)
+
 ### Requirement: Browser OAuth login flow
 
 The server SHALL expose `GET /api/auth/login` that redirects the browser to the Spotify authorization URL using PKCE (no client_secret). The redirect URI SHALL be `https://127.0.0.1.nip.io:8888/callback`. The server SHALL listen on port 8888 with the local TLS certificates at `certs/local.pem` and `certs/local-key.pem`.
@@ -25,11 +30,11 @@ The server SHALL expose `GET /api/auth/login` that redirects the browser to the 
 
 ### Requirement: OAuth callback handler
 
-The server SHALL expose `GET /api/auth/callback` that exchanges the authorization code for tokens using pure PKCE (client_id in body, no Authorization header), saves the result to `~/.spotify-vibe-token.json`, and redirects the browser to `/`.
+The server SHALL expose `GET /callback` that exchanges the authorization code for tokens using pure PKCE (client_id in body, no Authorization header), saves the result to `~/.spotify-vibe-token.json`, and redirects the browser to `/`. The route path MUST match the registered redirect URI (`https://127.0.0.1.nip.io:8888/callback`) exactly — Spotify redirects the browser directly to the Express server on port 8888, so the handler is mounted at `/callback`, not under `/api`.
 
 #### Scenario: Successful callback
 
-- **WHEN** Spotify redirects to `/api/auth/callback` with a valid `code` parameter
+- **WHEN** Spotify redirects to `/callback` with a valid `code` parameter
 - **THEN** the server exchanges the code, saves the token, and responds with a 302 redirect to `/`
 
 #### Scenario: Callback with error
@@ -50,3 +55,17 @@ The React client SHALL call `GET /api/auth/status` on initial load. When `connec
 
 - **WHEN** the OAuth callback redirects back to `/` and status returns `connected: true`
 - **THEN** the dashboard is shown with `● CONNECTED` in the header
+
+### Requirement: Logout
+
+The server SHALL expose `POST /api/auth/logout` that deletes the local token file at `~/.spotify-vibe-token.json` and returns `{ ok: true }`. The React client SHALL render a `⏻ LOG OUT` control in the header only while connected; clicking it SHALL call the endpoint and return the app to the not-connected state, clearing the loaded playlists and selection.
+
+#### Scenario: Logging out
+
+- **WHEN** a connected user clicks `⏻ LOG OUT`
+- **THEN** the server deletes the token file, `GET /api/auth/status` subsequently returns `{ "connected": false }`, and the client displays the not-logged-in screen
+
+#### Scenario: Logout control hidden when disconnected
+
+- **WHEN** the app is in the not-connected state
+- **THEN** no logout control is shown (only the "CONNECT SPOTIFY" CTA)
