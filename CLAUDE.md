@@ -14,6 +14,9 @@ Local MCP server that creates Spotify playlists from vibe descriptions. Runs via
 | `src/vibes.ts` | Vibe → search query mapping + `buildSearchQuery()` |
 | `scripts/auth.ts` | One-shot OAuth PKCE flow — saves token to disk |
 | `scripts/test-auth.ts` | 4-step API diagnostic (me, search, create, add-items) |
+| `server/index.ts` | Vibe Station web API (Express) — auth, playlists, `/api/vibe`, `/api/playlists/:id/revibe` |
+| `client/` | Vibe Station web UI (React + Vite); calls the API via relative `/api` paths |
+| `render.yaml` | Render blueprint for deploying the web app |
 
 ## Critical API note
 
@@ -40,6 +43,20 @@ Token refresh in `src/token.ts` also uses pure PKCE (client_id in body, no Autho
 ## Error handling
 
 Each API call has its own labeled try/catch in `src/index.ts`. Errors surface as `Error at {step}: {detail}` where step is `search`, `create-playlist`, or `add-tracks [{playlist_id}]`.
+
+## Deployment (Render)
+
+The Vibe Station web app is deployed live at **https://vibe-station-rcjx.onrender.com** via `render.yaml`.
+
+`server/index.ts` branches on `NODE_ENV === "production"` (`IS_PROD`):
+- **prod** — serves the built `client/dist` from the same origin, listens on `$PORT` over plain HTTP (Render terminates TLS at its edge), redirects the OAuth callback to `/`, skips CORS.
+- **dev** — HTTPS on 8888 with mkcert certs, callback redirects to `:5173`, CORS allows `:5173`.
+
+`npm run build` builds the client (forces `--include=dev` since Render sets `NODE_ENV=production`); `npm run serve` runs the server. `tsx` lives in `dependencies` so it survives Render's prod prune.
+
+Render env vars: `SPOTIFY_CLIENT_ID`, `ANTHROPIC_API_KEY`, `SPOTIFY_REDIRECT_URI` (= `https://<service>.onrender.com/callback`, also registered in the Spotify dashboard).
+
+**Free-tier caveat:** filesystem is ephemeral, so the token at `~/.spotify-vibe-token.json` is wiped on every spin-down/deploy → periodic re-auth is expected. A durable token needs a paid instance + Persistent Disk.
 
 ## Debugging
 

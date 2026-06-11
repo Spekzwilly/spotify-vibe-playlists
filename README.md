@@ -4,6 +4,10 @@ A local MCP server that creates Spotify playlists from natural language vibe des
 
 Built as a personal replacement for Spotify AI DJ, which is region-locked in Taiwan.
 
+There are two ways to use it: the **MCP server** (from Claude Desktop) and the **Vibe Station web app** (Express + React), which is deployed live on Render:
+
+**🌐 Live app: https://vibe-station-rcjx.onrender.com**
+
 ## How it works
 
 Claude Desktop calls the `create_vibe_playlist` MCP tool with:
@@ -94,6 +98,33 @@ Restart Claude Desktop. Ask Claude: *"Create a lo-fi playlist for studying, 30 m
 ## Token storage
 
 The OAuth token is stored at `~/.spotify-vibe-token.json` (mode 600). It auto-refreshes using the refresh token when it expires.
+
+## Web app (Vibe Station)
+
+A browser UI for the same engine, backed by `server/index.ts` (Express) and `client/` (React + Vite). It uses Claude to parse a free-text prompt into vibe parameters, then searches Spotify and builds the playlist.
+
+```bash
+npm run dev      # client on :5173, API on https://localhost:8888 (needs mkcert certs)
+```
+
+Requires `ANTHROPIC_API_KEY` in `.env` in addition to the Spotify credentials.
+
+## Deployment (Render)
+
+Deployed live at **https://vibe-station-rcjx.onrender.com** via the `render.yaml` blueprint.
+
+In production, Express serves the built React client from the same origin and listens on `$PORT` over plain HTTP (Render terminates TLS at its edge). Local dev keeps HTTPS + mkcert so the Spotify redirect URI matches.
+
+**To deploy your own:**
+
+1. Render → New → **Blueprint**, point at this repo (reads `render.yaml` from `main`).
+2. In the service's **Environment** tab, set: `SPOTIFY_CLIENT_ID`, `ANTHROPIC_API_KEY`, and `SPOTIFY_REDIRECT_URI=https://<your-service>.onrender.com/callback`.
+3. Add that same `/callback` URL as a Redirect URI in the Spotify developer dashboard.
+4. Open the URL → **Connect Spotify**.
+
+**Free-tier caveats:**
+- The filesystem is ephemeral, so the Spotify token (`~/.spotify-vibe-token.json`) is wiped on every spin-down/deploy — you'll re-click **Connect Spotify** periodically. For a durable token, use a paid instance + Persistent Disk pointed at the token path.
+- First request after ~15 min idle is a slow cold start (~30–60s).
 
 ## Notes
 
