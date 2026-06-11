@@ -77,8 +77,16 @@ function buildVibeLog(input: string, playlist: SpotifyPlaylist, steps: string[])
   };
 }
 
+const IS_PROD = process.env.NODE_ENV === "production";
+// Where the OAuth callback sends the browser back to. Locally the Vite dev
+// server owns the UI on :5173; in prod Express serves the built client itself,
+// so we redirect to the same origin ("/").
+const APP_ORIGIN = IS_PROD ? "/" : "http://localhost:5173/";
+
 const app = express();
-app.use(cors({ origin: "http://localhost:5173" }));
+// Only needed in dev, where the UI (5173) and API (8888) are different origins.
+// In prod Express serves both from one origin, so CORS is a no-op.
+if (!IS_PROD) app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
 
 // ── Auth: status ──────────────────────────────────────────────────────────────
@@ -152,7 +160,7 @@ app.get("/callback", async (req, res) => {
       refresh_token: resp.data.refresh_token,
       expires_at: Date.now() + resp.data.expires_in * 1000,
     });
-    res.redirect("http://localhost:5173/");
+    res.redirect(APP_ORIGIN);
   } catch (err: unknown) {
     const detail = (err as any)?.response?.data ?? (err instanceof Error ? err.message : String(err));
     res.status(400).json({ error: "Token exchange failed", detail });
@@ -405,25 +413,41 @@ app.post("/api/playlists/:id/revibe", async (req, res) => {
   }
 });
 
-// ── Start HTTPS server ────────────────────────────────────────────────────────
-const certDir = path.join(ROOT, "certs");
-const certPath = path.join(certDir, "local.pem");
-const keyPath = path.join(certDir, "local-key.pem");
-
-if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
-  console.error("Error: certs/local.pem and certs/local-key.pem not found.");
-  console.error("Run: mkcert -cert-file certs/local.pem -key-file certs/local-key.pem 127.0.0.1.nip.io localhost");
-  process.exit(1);
+// ── Serve the built client (production) ───────────────────────────────────────
+// In prod Express is the only server, so it hands out the compiled React app and
+// falls back to index.html for client-side routes. API and /callback are declared
+// above, so they win over this catch-all.
+const clientDist = path.join(ROOT, "client", "dist");
+if (IS_PROD && fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  app.get(/^(?!\/api|\/callback).*/, (_req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
 }
 
-const server = https.createServer(
-  {
-    cert: fs.readFileSync(certPath),
-    key: fs.readFileSync(keyPath),
-  },
-  app
-);
+// ── Start server ──────────────────────────────────────────────────────────────
+// Render terminates TLS at its edge and gives us plain HTTP on $PORT. Locally we
+// keep HTTPS so the Spotify redirect URI (https://…nip.io:8888/callback) matches.
+const PORT = Number(process.env.PORT) || 8888;
 
-server.listen(8888, () => {
-  console.log("Vibe Station server → https://localhost:8888");
-});
+if (IS_PROD) {
+  app.listen(PORT, () => {
+    console.log(`Vibe Station server → http://0.0.0.0:${PORT}`);
+  });
+} else {
+  const certDir = path.join(ROOT, "certs");
+  const certPath = path.join(certDir, "local.pem");
+  const keyPath = path.join(certDir, "local-key.pem");
+
+  if (!fs.existsSync(certPath) || !fs.existsSync(keyPath)) {
+    console.error("Error: certs/local.pem and certs/local-key.pem not found.");
+    console.error("Run: mkcert -cert-file certs/local.pem -key-file certs/local-key.pem 127.0.0.1.nip.io localhost");
+    process.exit(1);
+  }
+
+  https
+    .createServer({ cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) }, app)
+    .listen(PORT, () => {
+      console.log(`Vibe Station server → https://localhost:${PORT}`);
+    });
+}

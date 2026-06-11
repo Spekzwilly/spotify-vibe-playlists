@@ -7,7 +7,8 @@
     "auth": "npx tsx scripts/auth.ts",
     "start": "npx tsx src/index.ts",
     "dev": "concurrently \"npx tsx server/index.ts\" \"npm run dev --prefix client\"",
-    "build": "npm run build --prefix client",
+    "serve": "tsx server/index.ts",
+    "build": "npm install --prefix client --include=dev && npm run build --prefix client",
     "prototype": "cd prototype && (test -d node_modules || npm install) && npm run dev"
   },
   "keywords": [],
@@ -23,11 +24,11 @@
     "concurrently": "^10.0.3",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "open": "^11.0.0"
+    "open": "^11.0.0",
+    "tsx": "^4.22.3"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "tsx": "^4.22.3",
     "typescript": "^6.0.3"
   }
 }
