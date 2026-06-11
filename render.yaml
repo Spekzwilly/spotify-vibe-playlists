@@ -1,0 +1,23 @@
+# Render Blueprint — Vibe Station web app.
+# Deploy: render.com → New → Blueprint → point at this repo.
+# After the first deploy, copy the service URL and:
+#   1. Set SPOTIFY_REDIRECT_URI to https://<your-service>.onrender.com/callback
+#   2. Add that same URL as a Redirect URI in the Spotify developer dashboard
+# Free tier note: the disk is ephemeral, so the Spotify token is lost on every
+# spin-down/deploy — you'll re-click "Connect Spotify". That's expected here.
+services:
+  - type: web
+    name: vibe-station
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run serve
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SPOTIFY_CLIENT_ID
+        sync: false # set in the Render dashboard
+      - key: ANTHROPIC_API_KEY
+        sync: false # set in the Render dashboard
+      - key: SPOTIFY_REDIRECT_URI
+        sync: false # set to https://<your-service>.onrender.com/callback after first deploy
