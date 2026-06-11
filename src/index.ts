@@ -58,7 +58,7 @@ Example: "Focus · lo-fi white-noise · 30min"`,
         ? JSON.stringify(spotifyError)
         : err instanceof Error ? err.message : String(err);
       return {
-        content: [{ type: "text", text: `Error at ${step}: ${detail}` }],
+        content: [{ type: "text" as const, text: `Error at ${step}: ${detail}` }],
         isError: true,
       };
     }
